@@ -1,10 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require_relative "../lib/caldav/version"
+require_relative "../lib/protocol/caldav/version"
 
-version = Caldav::VERSION
-tag = "v#{version}"
+version = Protocol::Caldav::VERSION
+tag = "protocol-caldav-v#{version}"
 
 existing = `git tag -l #{tag}`.strip
 unless existing.empty?
