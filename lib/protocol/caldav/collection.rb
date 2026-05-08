@@ -57,6 +57,8 @@ module Protocol
           prop_lines << '<c:supported-calendar-component-set><c:comp name="VEVENT"/><c:comp name="VTODO"/><c:comp name="VJOURNAL"/></c:supported-calendar-component-set>'
         end
 
+        prop_lines << '<d:current-user-privilege-set><d:privilege><d:read/></d:privilege><d:privilege><d:write/></d:privilege><d:privilege><d:all/></d:privilege></d:current-user-privilege-set>'
+
         @props.each do |key, value|
           prop_lines << "<#{key}>#{Xml.escape(value)}</#{key}>"
         end
