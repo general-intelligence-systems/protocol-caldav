@@ -24,6 +24,7 @@ Gem::Specification.new do |spec|
   spec.files = Dir.glob('lib/protocol/**/*').select { |f| File.file?(f) }
   spec.require_paths = ['lib']
 
+  spec.add_dependency 'builder'
   spec.add_dependency 'rexml'
   spec.add_dependency 'scampi', '~> 0.1.7'
 end

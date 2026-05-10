@@ -2,6 +2,7 @@
 
 require "bundler/setup"
 require "scampi"
+require "builder"
 
 require "protocol/caldav"
 
@@ -27,75 +28,79 @@ module Protocol
         self
       end
 
+      def build_propfind(xml)
+        XmlBuilder.response(xml, href: @path.to_s) do
+          XmlBuilder.propstat_ok(xml) do
+            xml.tag!("d:resourcetype") do
+              xml.tag!("d:collection")
+              xml.tag!("c:calendar") if @type == :calendar
+              xml.tag!("cr:addressbook") if @type == :addressbook
+            end
+
+            xml.tag!("d:displayname", @displayname) if @displayname
+            xml.tag!("c:calendar-description", @description) if @description
+            xml.tag!("x:calendar-color", @color) if @color
+
+            item_etags = @path.storage_class.list_items(@path.to_s).map { |_, data| data[:etag] }
+            ctag = CTag.compute(
+              path: @path.to_s,
+              displayname: @displayname,
+              description: @description,
+              color: @color,
+              item_etags: item_etags
+            )
+            xml.tag!("cs:getctag", ctag)
+            xml.tag!("d:sync-token", "http://caldav.local/sync/#{ctag}")
+
+            if @type == :calendar
+              xml.tag!("c:supported-calendar-component-set") do
+                xml.tag!("c:comp", name: "VEVENT")
+                xml.tag!("c:comp", name: "VTODO")
+                xml.tag!("c:comp", name: "VJOURNAL")
+              end
+            end
+
+            xml.tag!("d:current-user-privilege-set") do
+              xml.tag!("d:privilege") { xml.tag!("d:read") }
+              xml.tag!("d:privilege") { xml.tag!("d:write") }
+              xml.tag!("d:privilege") { xml.tag!("d:all") }
+            end
+
+            @props.each do |key, value|
+              xml.tag!(key, value)
+            end
+          end
+        end
+      end
+
+      def build_propname(xml)
+        XmlBuilder.response(xml, href: @path.to_s) do
+          XmlBuilder.propstat_ok(xml) do
+            xml.tag!("d:resourcetype")
+            xml.tag!("d:displayname") if @displayname
+            xml.tag!("c:calendar-description") if @description
+            xml.tag!("x:calendar-color") if @color
+            xml.tag!("cs:getctag")
+            xml.tag!("d:sync-token")
+            xml.tag!("c:supported-calendar-component-set") if @type == :calendar
+          end
+        end
+      end
+
+      def build_xml(xml)
+        build_propfind(xml)
+      end
+
       def to_propfind_xml
-        prop_lines = []
-
-        if @type == :calendar
-          prop_lines << '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>'
-        elsif @type == :addressbook
-          prop_lines << '<d:resourcetype><d:collection/><cr:addressbook/></d:resourcetype>'
-        else
-          prop_lines << '<d:resourcetype><d:collection/></d:resourcetype>'
-        end
-
-        prop_lines << "<d:displayname>#{Xml.escape(@displayname)}</d:displayname>" if @displayname
-        prop_lines << "<c:calendar-description>#{Xml.escape(@description)}</c:calendar-description>" if @description
-        prop_lines << "<x:calendar-color>#{Xml.escape(@color)}</x:calendar-color>" if @color
-
-        item_etags = @path.storage_class.list_items(@path.to_s).map { |_, data| data[:etag] }
-        ctag = CTag.compute(
-          path: @path.to_s,
-          displayname: @displayname,
-          description: @description,
-          color: @color,
-          item_etags: item_etags
-        )
-        prop_lines << "<cs:getctag>#{ctag}</cs:getctag>"
-        prop_lines << "<d:sync-token>http://caldav.local/sync/#{ctag}</d:sync-token>"
-
-        if @type == :calendar
-          prop_lines << '<c:supported-calendar-component-set><c:comp name="VEVENT"/><c:comp name="VTODO"/><c:comp name="VJOURNAL"/></c:supported-calendar-component-set>'
-        end
-
-        prop_lines << '<d:current-user-privilege-set><d:privilege><d:read/></d:privilege><d:privilege><d:write/></d:privilege><d:privilege><d:all/></d:privilege></d:current-user-privilege-set>'
-
-        @props.each do |key, value|
-          prop_lines << "<#{key}>#{Xml.escape(value)}</#{key}>"
-        end
-
-        <<~XML
-          <d:response>
-            <d:href>#{Xml.escape(@path.to_s)}</d:href>
-            <d:propstat>
-              <d:prop>
-                #{prop_lines.join("\n          ")}
-              </d:prop>
-              <d:status>HTTP/1.1 200 OK</d:status>
-            </d:propstat>
-          </d:response>
-        XML
+        x = Builder::XmlMarkup.new
+        build_propfind(x)
+        x.target!
       end
 
       def to_propname_xml
-        names = ['<d:resourcetype/>']
-        names << '<d:displayname/>' if @displayname
-        names << '<c:calendar-description/>' if @description
-        names << '<x:calendar-color/>' if @color
-        names << '<cs:getctag/>'
-        names << '<d:sync-token/>'
-        names << '<c:supported-calendar-component-set/>' if @type == :calendar
-
-        <<~XML
-          <d:response>
-            <d:href>#{Xml.escape(@path.to_s)}</d:href>
-            <d:propstat>
-              <d:prop>
-                #{names.join("\n          ")}
-              </d:prop>
-              <d:status>HTTP/1.1 200 OK</d:status>
-            </d:propstat>
-          </d:response>
-        XML
+        x = Builder::XmlMarkup.new
+        build_propname(x)
+        x.target!
       end
     end
   end

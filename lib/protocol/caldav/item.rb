@@ -2,6 +2,7 @@
 
 require "bundler/setup"
 require "scampi"
+require "builder"
 require "protocol/caldav"
 
 module Protocol
@@ -21,49 +22,53 @@ module Protocol
         @new_record
       end
 
+      def build_propfind(xml)
+        XmlBuilder.response(xml, href: @path.to_s) do
+          XmlBuilder.propstat_ok(xml) do
+            xml.tag!("d:getetag", @etag)
+            xml.tag!("d:getcontenttype", @content_type)
+          end
+        end
+      end
+
+      def build_propname(xml)
+        XmlBuilder.response(xml, href: @path.to_s) do
+          XmlBuilder.propstat_ok(xml) do
+            xml.tag!("d:getetag")
+            xml.tag!("d:getcontenttype")
+          end
+        end
+      end
+
+      def build_report(xml, data_tag:)
+        XmlBuilder.response(xml, href: @path.to_s) do
+          XmlBuilder.propstat_ok(xml) do
+            xml.tag!("d:getetag", @etag)
+            xml.tag!(data_tag, @body)
+          end
+        end
+      end
+
+      def build_xml(xml)
+        build_propfind(xml)
+      end
+
       def to_propfind_xml
-        <<~XML
-          <d:response>
-            <d:href>#{Xml.escape(@path.to_s)}</d:href>
-            <d:propstat>
-              <d:prop>
-                <d:getetag>#{Xml.escape(@etag)}</d:getetag>
-                <d:getcontenttype>#{Xml.escape(@content_type)}</d:getcontenttype>
-              </d:prop>
-              <d:status>HTTP/1.1 200 OK</d:status>
-            </d:propstat>
-          </d:response>
-        XML
+        x = Builder::XmlMarkup.new
+        build_propfind(x)
+        x.target!
       end
 
       def to_propname_xml
-        <<~XML
-          <d:response>
-            <d:href>#{Xml.escape(@path.to_s)}</d:href>
-            <d:propstat>
-              <d:prop>
-                <d:getetag/>
-                <d:getcontenttype/>
-              </d:prop>
-              <d:status>HTTP/1.1 200 OK</d:status>
-            </d:propstat>
-          </d:response>
-        XML
+        x = Builder::XmlMarkup.new
+        build_propname(x)
+        x.target!
       end
 
       def to_report_xml(data_tag:)
-        <<~XML
-          <d:response>
-            <d:href>#{Xml.escape(@path.to_s)}</d:href>
-            <d:propstat>
-              <d:prop>
-                <d:getetag>#{Xml.escape(@etag)}</d:getetag>
-                <#{data_tag}>#{Xml.escape(@body)}</#{data_tag}>
-              </d:prop>
-              <d:status>HTTP/1.1 200 OK</d:status>
-            </d:propstat>
-          </d:response>
-        XML
+        x = Builder::XmlMarkup.new
+        build_report(x, data_tag: data_tag)
+        x.target!
       end
     end
   end

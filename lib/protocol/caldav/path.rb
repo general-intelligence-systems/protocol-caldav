@@ -2,6 +2,7 @@
 
 require "bundler/setup"
 require "scampi"
+require "builder"
 require "protocol/caldav"
 
 module Protocol
@@ -66,18 +67,22 @@ module Protocol
         to_s == other.to_s
       end
 
+      def build_propfind(xml)
+        XmlBuilder.response(xml, href: @to_s) do
+          XmlBuilder.propstat_ok(xml) do
+            xml.tag!("d:resourcetype") { xml.tag!("d:collection") }
+          end
+        end
+      end
+
+      def build_xml(xml)
+        build_propfind(xml)
+      end
+
       def to_propfind_xml
-        <<~XML
-          <d:response>
-            <d:href>#{Xml.escape(@to_s)}</d:href>
-            <d:propstat>
-              <d:prop>
-                <d:resourcetype><d:collection/></d:resourcetype>
-              </d:prop>
-              <d:status>HTTP/1.1 200 OK</d:status>
-            </d:propstat>
-          </d:response>
-        XML
+        x = Builder::XmlMarkup.new
+        build_propfind(x)
+        x.target!
       end
     end
   end
