@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    protocol-caldav (1.0.2)
+    protocol-caldav (1.0.3)
       builder
       rexml
       scampi (~> 0.1.7)
