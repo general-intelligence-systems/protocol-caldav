@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "bundler/setup"
-require "scampi"
 require "builder"
 require "protocol/caldav"
 
@@ -12,7 +10,9 @@ module Protocol
 
       def initialize(raw, storage_class: nil)
         p = raw.to_s.gsub(%r{/+}, '/')
-        p = "/#{p}" unless p.start_with?('/')
+        unless p.start_with?('/')
+          p = "/#{p}"
+        end
         @to_s = p
         @storage_class = storage_class
       end
@@ -32,7 +32,9 @@ module Protocol
 
       def child_of?(other)
         parent_str = other.to_s
-        parent_str = "#{parent_str}/" unless parent_str.end_with?('/')
+        unless parent_str.end_with?('/')
+          parent_str = "#{parent_str}/"
+        end
         if @to_s.start_with?(parent_str)
           remainder = @to_s[parent_str.length..]
           remainder.chomp('/').count('/').zero? && !remainder.chomp('/').empty?
@@ -42,7 +44,9 @@ module Protocol
       end
 
       def parent_exists?
-        raise ArgumentError, "storage_class required for parent_exists?" unless @storage_class
+        unless @storage_class
+          raise ArgumentError, "storage_class required for parent_exists?"
+        end
 
         if parent.depth <= 2
           true
@@ -88,103 +92,102 @@ module Protocol
   end
 end
 
+__END__
 
-test do
-  describe "Protocol::Caldav::Path" do
-    it "normalizes // to /" do
-      Protocol::Caldav::Path.new("//foo//bar").to_s.should.equal "/foo/bar"
+describe "Protocol::Caldav::Path" do
+  it "normalizes // to /" do
+    Protocol::Caldav::Path.new("//foo//bar").to_s.should.equal "/foo/bar"
+  end
+
+  it "normalizes leading ///foo to /foo" do
+    Protocol::Caldav::Path.new("///foo").to_s.should.equal "/foo"
+  end
+
+  it "adds leading / if missing" do
+    Protocol::Caldav::Path.new("foo/bar").to_s.should.equal "/foo/bar"
+  end
+
+  describe "#parent" do
+    it "parent of /a/b/c/ is /a/b/" do
+      Protocol::Caldav::Path.new("/a/b/c/").parent.to_s.should.equal "/a/b/"
     end
 
-    it "normalizes leading ///foo to /foo" do
-      Protocol::Caldav::Path.new("///foo").to_s.should.equal "/foo"
+    it "parent of /a/ is /" do
+      Protocol::Caldav::Path.new("/a/").parent.to_s.should.equal "/"
     end
 
-    it "adds leading / if missing" do
-      Protocol::Caldav::Path.new("foo/bar").to_s.should.equal "/foo/bar"
+    it "parent of / is / (idempotent)" do
+      Protocol::Caldav::Path.new("/").parent.to_s.should.equal "/"
+    end
+  end
+
+  describe "#depth" do
+    it "depth of / is 0" do
+      Protocol::Caldav::Path.new("/").depth.should.equal 0
     end
 
-    describe "#parent" do
-      it "parent of /a/b/c/ is /a/b/" do
-        Protocol::Caldav::Path.new("/a/b/c/").parent.to_s.should.equal "/a/b/"
-      end
-
-      it "parent of /a/ is /" do
-        Protocol::Caldav::Path.new("/a/").parent.to_s.should.equal "/"
-      end
-
-      it "parent of / is / (idempotent)" do
-        Protocol::Caldav::Path.new("/").parent.to_s.should.equal "/"
-      end
+    it "depth of /a/ is 1" do
+      Protocol::Caldav::Path.new("/a/").depth.should.equal 1
     end
 
-    describe "#depth" do
-      it "depth of / is 0" do
-        Protocol::Caldav::Path.new("/").depth.should.equal 0
-      end
+    it "depth of /a/b is 2 (trailing-slash-insensitive)" do
+      Protocol::Caldav::Path.new("/a/b").depth.should.equal 2
+    end
+  end
 
-      it "depth of /a/ is 1" do
-        Protocol::Caldav::Path.new("/a/").depth.should.equal 1
-      end
-
-      it "depth of /a/b is 2 (trailing-slash-insensitive)" do
-        Protocol::Caldav::Path.new("/a/b").depth.should.equal 2
-      end
+  describe "#child_of?" do
+    it "returns true for direct child" do
+      child = Protocol::Caldav::Path.new("/a/b/")
+      parent = Protocol::Caldav::Path.new("/a/")
+      child.child_of?(parent).should.equal true
     end
 
-    describe "#child_of?" do
-      it "returns true for direct child" do
-        child = Protocol::Caldav::Path.new("/a/b/")
-        parent = Protocol::Caldav::Path.new("/a/")
-        child.child_of?(parent).should.equal true
-      end
-
-      it "returns false for grandchild" do
-        grandchild = Protocol::Caldav::Path.new("/a/b/c/")
-        grandparent = Protocol::Caldav::Path.new("/a/")
-        grandchild.child_of?(grandparent).should.equal false
-      end
-
-      it "returns false for sibling" do
-        a = Protocol::Caldav::Path.new("/a/b/")
-        b = Protocol::Caldav::Path.new("/a/c/")
-        a.child_of?(b).should.equal false
-      end
-
-      it "returns false for self" do
-        a = Protocol::Caldav::Path.new("/a/")
-        a.child_of?(a).should.equal false
-      end
+    it "returns false for grandchild" do
+      grandchild = Protocol::Caldav::Path.new("/a/b/c/")
+      grandparent = Protocol::Caldav::Path.new("/a/")
+      grandchild.child_of?(grandparent).should.equal false
     end
 
-    describe "#ensure_trailing_slash" do
-      it "is idempotent on a slashed path" do
-        Protocol::Caldav::Path.new("/a/").ensure_trailing_slash.to_s.should.equal "/a/"
-      end
-
-      it "adds slash to unslashed" do
-        Protocol::Caldav::Path.new("/a").ensure_trailing_slash.to_s.should.equal "/a/"
-      end
+    it "returns false for sibling" do
+      a = Protocol::Caldav::Path.new("/a/b/")
+      b = Protocol::Caldav::Path.new("/a/c/")
+      a.child_of?(b).should.equal false
     end
 
-    describe "#start_with?" do
-      it "delegates to string semantics" do
-        Protocol::Caldav::Path.new("/calendars/admin/").start_with?("/calendars/").should.equal true
-        Protocol::Caldav::Path.new("/addressbooks/admin/").start_with?("/calendars/").should.equal false
-      end
+    it "returns false for self" do
+      a = Protocol::Caldav::Path.new("/a/")
+      a.child_of?(a).should.equal false
+    end
+  end
+
+  describe "#ensure_trailing_slash" do
+    it "is idempotent on a slashed path" do
+      Protocol::Caldav::Path.new("/a/").ensure_trailing_slash.to_s.should.equal "/a/"
     end
 
-    describe "#==" do
-      it "paths with same string are equal" do
-        a = Protocol::Caldav::Path.new("/a/")
-        b = Protocol::Caldav::Path.new("/a/")
-        (a == b).should.equal true
-      end
+    it "adds slash to unslashed" do
+      Protocol::Caldav::Path.new("/a").ensure_trailing_slash.to_s.should.equal "/a/"
+    end
+  end
 
-      it "paths from different storage_class but same string compare equal" do
-        a = Protocol::Caldav::Path.new("/a/", storage_class: Object.new)
-        b = Protocol::Caldav::Path.new("/a/", storage_class: Object.new)
-        (a == b).should.equal true
-      end
+  describe "#start_with?" do
+    it "delegates to string semantics" do
+      Protocol::Caldav::Path.new("/calendars/admin/").start_with?("/calendars/").should.equal true
+      Protocol::Caldav::Path.new("/addressbooks/admin/").start_with?("/calendars/").should.equal false
+    end
+  end
+
+  describe "#==" do
+    it "paths with same string are equal" do
+      a = Protocol::Caldav::Path.new("/a/")
+      b = Protocol::Caldav::Path.new("/a/")
+      (a == b).should.equal true
+    end
+
+    it "paths from different storage_class but same string compare equal" do
+      a = Protocol::Caldav::Path.new("/a/", storage_class: Object.new)
+      b = Protocol::Caldav::Path.new("/a/", storage_class: Object.new)
+      (a == b).should.equal true
     end
   end
 end

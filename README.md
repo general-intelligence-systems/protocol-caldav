@@ -67,10 +67,21 @@ collection.to_propfind_xml  # => DAV:multistatus XML fragment
 
 ## Tests
 
+The specs are co-located with the code they cover, in each file's `__END__`
+section — Ruby stops parsing there, so nothing test-related loads in
+production. [Scampi](https://github.com/general-intelligence-systems/scampi)
+picks them up.
+
 ```
 bundle install
-bundle exec scampi
+bin/test
 ```
+
+## Style
+
+`bundle exec rubocop` checks the house cops in `cops/`, configured by
+`.rubocop.yml`. `lefthook install` wires both that and the suite into a
+pre-commit hook.
 
 ## License
 

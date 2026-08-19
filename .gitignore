@@ -1,6 +1,7 @@
 *.gem
 /.env
 /.direnv
+/.gem
 /node_modules
 /.bundle/
 /coverage/
@@ -9,3 +10,6 @@
 /vendor/bundle
 refs
 .claude
+
+.direnv
+.gem

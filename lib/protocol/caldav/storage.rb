@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require "bundler/setup"
-require "scampi"
-
 module Protocol
   module Caldav
     class Storage
@@ -86,35 +83,34 @@ module Protocol
   end
 end
 
+__END__
 
-test do
-  describe "Protocol::Caldav::Storage" do
-    it "every method raises NotImplementedError" do
-      s = Protocol::Caldav::Storage.new
-      methods = %i[create_collection get_collection delete_collection list_collections
-                   update_collection collection_exists? get_item put_item delete_item
-                   list_items move_item get_multi exists? etag snapshot_sync sync_changes]
-      three_arg = %i[put_item]
-      two_arg = %i[update_collection move_item sync_changes]
-      methods.each do |m|
-        if three_arg.include?(m)
-          lambda { s.send(m, "/x", "body", "ct") }.should.raise NotImplementedError
-        elsif two_arg.include?(m)
-          lambda { s.send(m, "/x", {}) }.should.raise NotImplementedError
-        else
-          lambda { s.send(m, "/x") }.should.raise NotImplementedError
-        end
+describe "Protocol::Caldav::Storage" do
+  it "every method raises NotImplementedError" do
+    s = Protocol::Caldav::Storage.new
+    methods = %i[create_collection get_collection delete_collection list_collections
+                 update_collection collection_exists? get_item put_item delete_item
+                 list_items move_item get_multi exists? etag snapshot_sync sync_changes]
+    three_arg = %i[put_item]
+    two_arg = %i[update_collection move_item sync_changes]
+    methods.each do |m|
+      if three_arg.include?(m)
+        lambda { s.send(m, "/x", "body", "ct") }.should.raise NotImplementedError
+      elsif two_arg.include?(m)
+        lambda { s.send(m, "/x", {}) }.should.raise NotImplementedError
+      else
+        lambda { s.send(m, "/x") }.should.raise NotImplementedError
       end
     end
+  end
 
-    it "can be subclassed with partial implementation" do
-      klass = Class.new(Protocol::Caldav::Storage) do
-        def exists?(path)
-          true
-        end
+  it "can be subclassed with partial implementation" do
+    klass = Class.new(Protocol::Caldav::Storage) do
+      def exists?(path)
+        true
       end
-      klass.new.exists?("/x").should.equal true
-      lambda { klass.new.get_item("/x") }.should.raise NotImplementedError
     end
+    klass.new.exists?("/x").should.equal true
+    lambda { klass.new.get_item("/x") }.should.raise NotImplementedError
   end
 end

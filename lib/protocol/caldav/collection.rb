@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "bundler/setup"
-require "scampi"
 require "builder"
 
 require "protocol/caldav"
@@ -21,10 +19,18 @@ module Protocol
       end
 
       def update_attrs(updates)
-        @displayname = updates[:displayname] if updates.key?(:displayname)
-        @description = updates[:description] if updates.key?(:description)
-        @color = updates[:color] if updates.key?(:color)
-        @props = (@props || {}).merge(updates[:props]) if updates.key?(:props)
+        if updates.key?(:displayname)
+          @displayname = updates[:displayname]
+        end
+        if updates.key?(:description)
+          @description = updates[:description]
+        end
+        if updates.key?(:color)
+          @color = updates[:color]
+        end
+        if updates.key?(:props)
+          @props = (@props || {}).merge(updates[:props])
+        end
         self
       end
 
@@ -33,21 +39,31 @@ module Protocol
           XmlBuilder.propstat_ok(xml) do
             xml.tag!("d:resourcetype") do
               xml.tag!("d:collection")
-              xml.tag!("c:calendar") if @type == :calendar
-              xml.tag!("cr:addressbook") if @type == :addressbook
+              if @type == :calendar
+                xml.tag!("c:calendar")
+              end
+              if @type == :addressbook
+                xml.tag!("cr:addressbook")
+              end
             end
 
-            xml.tag!("d:displayname", @displayname) if @displayname
-            xml.tag!("c:calendar-description", @description) if @description
-            xml.tag!("x:calendar-color", @color) if @color
+            if @displayname
+              xml.tag!("d:displayname", @displayname)
+            end
+            if @description
+              xml.tag!("c:calendar-description", @description)
+            end
+            if @color
+              xml.tag!("x:calendar-color", @color)
+            end
 
             item_etags = @path.storage_class.list_items(@path.to_s).map { |_, data| data[:etag] }
             ctag = CTag.compute(
-              path: @path.to_s,
+              path:        @path.to_s,
               displayname: @displayname,
               description: @description,
-              color: @color,
-              item_etags: item_etags
+              color:       @color,
+              item_etags:  item_etags,
             )
             xml.tag!("cs:getctag", ctag)
             xml.tag!("d:sync-token", "http://caldav.local/sync/#{ctag}")
@@ -77,12 +93,20 @@ module Protocol
         XmlBuilder.response(xml, href: @path.to_s) do
           XmlBuilder.propstat_ok(xml) do
             xml.tag!("d:resourcetype")
-            xml.tag!("d:displayname") if @displayname
-            xml.tag!("c:calendar-description") if @description
-            xml.tag!("x:calendar-color") if @color
+            if @displayname
+              xml.tag!("d:displayname")
+            end
+            if @description
+              xml.tag!("c:calendar-description")
+            end
+            if @color
+              xml.tag!("x:calendar-color")
+            end
             xml.tag!("cs:getctag")
             xml.tag!("d:sync-token")
-            xml.tag!("c:supported-calendar-component-set") if @type == :calendar
+            if @type == :calendar
+              xml.tag!("c:supported-calendar-component-set")
+            end
           end
         end
       end
@@ -106,75 +130,75 @@ module Protocol
   end
 end
 
-test do
-  def normalize(xml)
-    xml.gsub(/>\s+</, '><').strip
+__END__
+
+def normalize(xml)
+  xml.gsub(/>\s+</, '><').strip
+end
+
+# Minimal mock storage for Collection tests
+class MockStorageForCollection < Protocol::Caldav::Storage
+  def list_items(_path)
+    []
+  end
+end
+
+describe "Protocol::Caldav::Collection" do
+  def make_collection(type: :calendar, displayname: "Work", **opts)
+    storage = MockStorageForCollection.new
+    path = Protocol::Caldav::Path.new("/calendars/admin/work/", storage_class: storage)
+    Protocol::Caldav::Collection.new(path: path, type: type, displayname: displayname, **opts)
   end
 
-  # Minimal mock storage for Collection tests
-  class MockStorageForCollection < Protocol::Caldav::Storage
-    def list_items(_path)
-      []
-    end
+  it "renders calendar resourcetype" do
+    xml = make_collection(type: :calendar).to_propfind_xml
+    xml.should.include "<c:calendar/>"
   end
 
-  describe "Protocol::Caldav::Collection" do
-    def make_collection(type: :calendar, displayname: "Work", **opts)
-      storage = MockStorageForCollection.new
-      path = Protocol::Caldav::Path.new("/calendars/admin/work/", storage_class: storage)
-      Protocol::Caldav::Collection.new(path: path, type: type, displayname: displayname, **opts)
-    end
+  it "renders addressbook resourcetype" do
+    xml = make_collection(type: :addressbook).to_propfind_xml
+    xml.should.include "<cr:addressbook/>"
+  end
 
-    it "renders calendar resourcetype" do
-      xml = make_collection(type: :calendar).to_propfind_xml
-      xml.should.include "<c:calendar/>"
-    end
+  it "includes displayname when set" do
+    xml = make_collection(displayname: "Work").to_propfind_xml
+    xml.should.include "<d:displayname>Work</d:displayname>"
+  end
 
-    it "renders addressbook resourcetype" do
-      xml = make_collection(type: :addressbook).to_propfind_xml
-      xml.should.include "<cr:addressbook/>"
-    end
+  it "omits displayname when nil" do
+    xml = make_collection(displayname: nil).to_propfind_xml
+    xml.should.not.include "displayname"
+  end
 
-    it "includes displayname when set" do
-      xml = make_collection(displayname: "Work").to_propfind_xml
-      xml.should.include "<d:displayname>Work</d:displayname>"
-    end
+  it "includes ctag" do
+    xml = make_collection.to_propfind_xml
+    xml.should.include "<cs:getctag>"
+  end
 
-    it "omits displayname when nil" do
-      xml = make_collection(displayname: nil).to_propfind_xml
-      xml.should.not.include "displayname"
-    end
+  it "includes supported-calendar-component-set for calendars" do
+    xml = make_collection(type: :calendar).to_propfind_xml
+    xml.should.include "supported-calendar-component-set"
+  end
 
-    it "includes ctag" do
-      xml = make_collection.to_propfind_xml
-      xml.should.include "<cs:getctag>"
-    end
+  it "omits supported-calendar-component-set for addressbooks" do
+    xml = make_collection(type: :addressbook).to_propfind_xml
+    xml.should.not.include "supported-calendar-component-set"
+  end
 
-    it "includes supported-calendar-component-set for calendars" do
-      xml = make_collection(type: :calendar).to_propfind_xml
-      xml.should.include "supported-calendar-component-set"
-    end
+  it "escapes special characters in displayname" do
+    xml = make_collection(displayname: "Work & <Personal>").to_propfind_xml
+    xml.should.include "Work &amp; &lt;Personal&gt;"
+  end
 
-    it "omits supported-calendar-component-set for addressbooks" do
-      xml = make_collection(type: :addressbook).to_propfind_xml
-      xml.should.not.include "supported-calendar-component-set"
-    end
+  it "update_attrs modifies named fields" do
+    col = make_collection(displayname: "Old")
+    col.update_attrs(displayname: "New")
+    col.displayname.should.equal "New"
+  end
 
-    it "escapes special characters in displayname" do
-      xml = make_collection(displayname: "Work & <Personal>").to_propfind_xml
-      xml.should.include "Work &amp; &lt;Personal&gt;"
-    end
-
-    it "update_attrs modifies named fields" do
-      col = make_collection(displayname: "Old")
-      col.update_attrs(displayname: "New")
-      col.displayname.should.equal "New"
-    end
-
-    it "update_attrs leaves unmentioned fields alone" do
-      col = make_collection(displayname: "Work", description: "Desc")
-      col.update_attrs(displayname: "New")
-      col.description.should.equal "Desc"
-    end
+  it "update_attrs leaves unmentioned fields alone" do
+    col = make_collection(displayname: "Work", description: "Desc")
+    col.update_attrs(displayname: "New")
+    col.description.should.equal "Desc"
   end
 end

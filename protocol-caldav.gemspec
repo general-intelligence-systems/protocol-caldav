@@ -26,5 +26,9 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency 'builder'
   spec.add_dependency 'rexml'
-  spec.add_dependency 'scampi', '~> 0.1.7'
+
+  # Scampi is a test-time dependency now: the specs live in each file's
+  # __END__ section, which Ruby never parses, so nothing in lib/ requires it.
+  spec.add_development_dependency 'rubocop', '~> 1.88'
+  spec.add_development_dependency 'scampi', '~> 1.0'
 end

@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
 echo "=== Unit tests ==="
-bundle exec scampi
+# -Ilib: the Gemfile no longer resolves this repo as a path source (see the
+# comment there), so nothing else puts lib on the load path for the
+# `require "protocol/caldav"` at the top of most files.
+#
+# The files are listed rather than left to scampi's auto-discovery, which
+# walks the whole checkout -- gems included, once bundler has vendored any.
+RUBYOPT="-I$ROOT_DIR/lib" \
+  bundle exec scampi $(grep -rl '^__END__$' lib --include='*.rb' | sort)

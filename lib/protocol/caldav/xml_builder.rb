@@ -10,7 +10,7 @@ module Protocol
         "xmlns:c"  => "urn:ietf:params:xml:ns:caldav",
         "xmlns:cr" => "urn:ietf:params:xml:ns:carddav",
         "xmlns:cs" => "http://calendarserver.org/ns/",
-        "xmlns:x"  => "http://apple.com/ns/ical/"
+        "xmlns:x"  => "http://apple.com/ns/ical/",
       }.freeze
 
       module_function
@@ -27,7 +27,9 @@ module Protocol
       def response(xml, href:)
         xml.tag!("d:response") do
           xml.tag!("d:href", href)
-          yield xml if block_given?
+          if block_given?
+            yield xml
+          end
         end
       end
 

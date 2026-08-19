@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "bundler/setup"
-require "scampi"
 require "builder"
 require "protocol/caldav"
 
@@ -74,52 +72,52 @@ module Protocol
   end
 end
 
-test do
-  def normalize(xml)
-    xml.gsub(/>\s+</, '><').strip
+__END__
+
+def normalize(xml)
+  xml.gsub(/>\s+</, '><').strip
+end
+
+describe "Protocol::Caldav::Item" do
+  def make_item(**opts)
+    defaults = {
+      path: Protocol::Caldav::Path.new("/calendars/admin/work/event.ics"),
+      body: "BEGIN:VCALENDAR\r\nEND:VCALENDAR",
+      content_type: "text/calendar",
+      etag: '"abc123"'
+    }
+    Protocol::Caldav::Item.new(**defaults.merge(opts))
   end
 
-  describe "Protocol::Caldav::Item" do
-    def make_item(**opts)
-      defaults = {
-        path: Protocol::Caldav::Path.new("/calendars/admin/work/event.ics"),
-        body: "BEGIN:VCALENDAR\r\nEND:VCALENDAR",
-        content_type: "text/calendar",
-        etag: '"abc123"'
-      }
-      Protocol::Caldav::Item.new(**defaults.merge(opts))
-    end
+  it "exposes path, body, content_type, etag" do
+    item = make_item
+    item.path.to_s.should.equal "/calendars/admin/work/event.ics"
+    item.body.should.include "VCALENDAR"
+    item.content_type.should.equal "text/calendar"
+    item.etag.should.equal '"abc123"'
+  end
 
-    it "exposes path, body, content_type, etag" do
-      item = make_item
-      item.path.to_s.should.equal "/calendars/admin/work/event.ics"
-      item.body.should.include "VCALENDAR"
-      item.content_type.should.equal "text/calendar"
-      item.etag.should.equal '"abc123"'
-    end
+  it "new? returns new_record state" do
+    make_item(new_record: true).new?.should.equal true
+    make_item(new_record: false).new?.should.equal false
+  end
 
-    it "new? returns new_record state" do
-      make_item(new_record: true).new?.should.equal true
-      make_item(new_record: false).new?.should.equal false
-    end
+  it "to_propfind_xml includes etag and content-type" do
+    xml = make_item.to_propfind_xml
+    xml.should.include "getetag"
+    xml.should.include "getcontenttype"
+    xml.should.include "text/calendar"
+  end
 
-    it "to_propfind_xml includes etag and content-type" do
-      xml = make_item.to_propfind_xml
-      xml.should.include "getetag"
-      xml.should.include "getcontenttype"
-      xml.should.include "text/calendar"
-    end
+  it "to_report_xml includes data tag with body" do
+    xml = make_item.to_report_xml(data_tag: "c:calendar-data")
+    xml.should.include "c:calendar-data"
+    xml.should.include "VCALENDAR"
+  end
 
-    it "to_report_xml includes data tag with body" do
-      xml = make_item.to_report_xml(data_tag: "c:calendar-data")
-      xml.should.include "c:calendar-data"
-      xml.should.include "VCALENDAR"
-    end
-
-    it "to_propname_xml includes empty prop elements" do
-      xml = make_item.to_propname_xml
-      xml.should.include "<d:getetag/>"
-      xml.should.include "<d:getcontenttype/>"
-    end
+  it "to_propname_xml includes empty prop elements" do
+    xml = make_item.to_propname_xml
+    xml.should.include "<d:getetag/>"
+    xml.should.include "<d:getcontenttype/>"
   end
 end
